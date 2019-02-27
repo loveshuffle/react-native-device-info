@@ -309,4 +309,16 @@ export default {
   getDeviceType: function() {
     return RNDeviceInfo.deviceType;
   },
+  simOperator: function () {
+    return RNDeviceInfo.getSimOperator;
+  },
+  getIMEI: function () {
+    return RNDeviceInfo.imei;
+  },
+  getIMSI: function () {
+    return RNDeviceInfo.imsi;
+  },
+  getScreenDensityDpi: function () {
+    return RNDeviceInfo.ScreenDensityDpi;
+  }
 };

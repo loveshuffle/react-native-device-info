@@ -45,6 +45,10 @@ declare const _default: {
   isLandscape: () => boolean;
   isAirPlaneMode: () => Promise<boolean>;
   getDeviceType: () => DeviceType;
+  simOperator: () => string | null;
+  getIMEI: () => string | null;
+  getIMSI: () => string | null;
+  getScreenDensityDpi: () => Int | null
 };
 
 export default _default;

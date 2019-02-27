@@ -23,7 +23,7 @@ import android.telephony.TelephonyManager;
 import android.text.format.Formatter;
 import android.app.ActivityManager;
 import android.util.DisplayMetrics;
-
+import android.view.WindowManager;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
@@ -99,7 +99,57 @@ public class RNDeviceModule extends ReactContextBaseJavaModule {
 
     return current.getCountry();
   }
-
+  	private String getSimOperatorFun() {
+		try {
+			TelephonyManager tel = (TelephonyManager) this.reactContext.getSystemService(Context.TELEPHONY_SERVICE);
+			String IMSI = tel.getSubscriberId();
+			String ProvidersName = "";
+			if (IMSI != null) {
+				if (IMSI.startsWith("46000") || IMSI.startsWith("46002") || IMSI.startsWith("46007")) {
+					ProvidersName = "cmcc";
+				} else if (IMSI.startsWith("46001")  || IMSI.startsWith("46006")) {
+					ProvidersName = "unicom";
+				} else if (IMSI.startsWith("46003")) {
+					ProvidersName = "telecom";
+				}
+				return ProvidersName;
+			} else {
+				return "unknown";
+			}
+		} catch (Exception e) {
+			//TODO: handle exception
+			return "unknown";
+		}
+  	}
+	private String getImei() {
+		try {
+			TelephonyManager tel = (TelephonyManager) this.reactContext.getSystemService(Context.TELEPHONY_SERVICE);
+			return tel.getDeviceId() ;
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return "";
+	}
+	private String getImsi() {
+		try {
+			TelephonyManager tel = (TelephonyManager) this.reactContext.getSystemService(Context.TELEPHONY_SERVICE);
+			return tel.getSubscriberId();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return "";
+    }
+	private int getScreenDensityDpi() {
+			try{
+			WindowManager wm = (WindowManager) this.reactContext.getSystemService(Context.WINDOW_SERVICE);
+			DisplayMetrics metric = new DisplayMetrics();
+			wm.getDefaultDisplay().getMetrics(metric);
+			return metric.densityDpi;
+		} catch (Exception e){
+			e.printStackTrace();
+		}
+		return 0;
+	}
   private Boolean isEmulator() {
     return Build.FINGERPRINT.startsWith("generic")
         || Build.FINGERPRINT.startsWith("unknown")
@@ -206,9 +256,17 @@ public class RNDeviceModule extends ReactContextBaseJavaModule {
         File sdcardDir= Environment.getExternalStorageDirectory();
         /*StatFs 看文件系统空间使用情况*/
         StatFs statFs=new StatFs(sdcardDir.getPath());
-        long blockSize= statFs.getBlockSizeLong();
+
+        long blockSize = 0;
+        long totalSize = 0;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+          blockSize= statFs.getBlockSizeLong();
+          totalSize=statFs.getBlockCountLong();
+        } else {
+           blockSize= statFs.getBlockSize();
+           totalSize=statFs.getBlockCount();
+        }
     
-        long totalSize=statFs.getBlockCountLong();
     
         return blockSize*totalSize;
     }
@@ -226,8 +284,15 @@ public class RNDeviceModule extends ReactContextBaseJavaModule {
     public long getFreeDiskStorage(){
         File path=Environment.getExternalStorageDirectory();
         StatFs statFs=new StatFs(path.getPath());
-        long blockSize=statFs.getBlockSizeLong();
-        long availableBlocks=statFs.getAvailableBlocksLong();
+        long blockSize=0;
+        long availableBlocks = 0;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+          blockSize= statFs.getBlockSizeLong();
+           availableBlocks=statFs.getAvailableBlocksLong();
+        } else {
+           blockSize= statFs.getBlockSize();
+          availableBlocks=statFs.getAvailableBlocks();
+        }
         return blockSize*availableBlocks;
     }
   @ReactMethod
@@ -293,19 +358,24 @@ public class RNDeviceModule extends ReactContextBaseJavaModule {
     } catch (ClassNotFoundException e) {
       constants.put("instanceId", "N/A: Add com.google.android.gms:play-services-gcm to your project.");
     }
-    constants.put("serialNumber", Build.SERIAL);
-    constants.put("deviceName", deviceName);
-    constants.put("systemName", "Android");
-    constants.put("systemVersion", Build.VERSION.RELEASE);
-    constants.put("model", Build.MODEL);
-    constants.put("brand", Build.BRAND);
-    constants.put("deviceId", Build.BOARD);
-    constants.put("apiLevel", Build.VERSION.SDK_INT);
-    constants.put("deviceLocale", this.getCurrentLanguage());
-    constants.put("deviceCountry", this.getCurrentCountry());
-    constants.put("uniqueId", Secure.getString(this.reactContext.getContentResolver(), Secure.ANDROID_ID));
-    constants.put("systemManufacturer", Build.MANUFACTURER);
-    constants.put("bundleId", packageName);
+
+		constants.put("serialNumber", Build.SERIAL);
+		constants.put("deviceName", deviceName);
+		constants.put("systemName", "Android");
+		constants.put("systemVersion", Build.VERSION.RELEASE);
+		constants.put("model", Build.MODEL);
+		constants.put("brand", Build.BRAND);
+		constants.put("deviceId", Build.BOARD);
+		constants.put("apiLevel", Build.VERSION.SDK_INT);
+		constants.put("deviceLocale", this.getCurrentLanguage());
+		constants.put("deviceCountry", this.getCurrentCountry());
+		constants.put("getSimOperator", this.getSimOperatorFun());
+		constants.put("imei", this.getImei());
+    	constants.put("imsi", this.getImsi());
+    	constants.put("ScreenDensityDpi", this.getScreenDensityDpi());
+		constants.put("uniqueId", Secure.getString(this.reactContext.getContentResolver(), Secure.ANDROID_ID));
+		constants.put("systemManufacturer", Build.MANUFACTURER);
+		constants.put("bundleId", packageName);
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
       try {
         constants.put("userAgent", WebSettings.getDefaultUserAgent(this.reactContext));
@@ -318,12 +388,17 @@ public class RNDeviceModule extends ReactContextBaseJavaModule {
     constants.put("isTablet", this.isTablet());
     constants.put("fontScale", this.fontScale());
     constants.put("is24Hour", this.is24Hour());
-    if (getCurrentActivity() != null &&
-        (getCurrentActivity().checkCallingOrSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED ||
-            getCurrentActivity().checkCallingOrSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED ||
-            getCurrentActivity().checkCallingOrSelfPermission("android.permission.READ_PHONE_NUMBERS") == PackageManager.PERMISSION_GRANTED)) {
-      TelephonyManager telMgr = (TelephonyManager) this.reactContext.getApplicationContext().getSystemService(Context.TELEPHONY_SERVICE);
-      constants.put("phoneNumber", telMgr.getLine1Number());
+    try {
+		if (getCurrentActivity() != null &&
+			(getCurrentActivity().checkCallingOrSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED ||
+				getCurrentActivity().checkCallingOrSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED ||
+				getCurrentActivity().checkCallingOrSelfPermission("android.permission.READ_PHONE_NUMBERS") == PackageManager.PERMISSION_GRANTED)) {
+
+			TelephonyManager telMgr = (TelephonyManager) this.reactContext.getApplicationContext().getSystemService(Context.TELEPHONY_SERVICE);
+			constants.put("phoneNumber", telMgr.getLine1Number());
+		}
+    } catch (Exception e) {
+      //TODO: handle exception
     }
     constants.put("carrier", this.getCarrier());
     constants.put("totalDiskCapacity", this.getTotalDiskCapacity());
