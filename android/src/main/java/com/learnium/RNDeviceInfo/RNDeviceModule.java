@@ -33,11 +33,13 @@ import com.facebook.react.bridge.Promise;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 import java.lang.Runtime;
 import java.net.NetworkInterface;
+import java.math.BigInteger;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -87,6 +89,20 @@ public class RNDeviceModule extends ReactContextBaseJavaModule {
       }
       return builder.toString();
     }
+  }
+
+  private ArrayList<String> getPreferredLocales() {
+    Configuration configuration = getReactApplicationContext().getResources().getConfiguration();
+    ArrayList<String> preferred = new ArrayList<>();
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+      for (int i = 0; i < configuration.getLocales().size(); i++) {
+        preferred.add(configuration.getLocales().get(i).getLanguage());
+      }
+    } else {
+      preferred.add(configuration.locale.getLanguage());
+    }
+
+    return preferred;
   }
 
   private String getCurrentCountry() {
@@ -296,12 +312,54 @@ public class RNDeviceModule extends ReactContextBaseJavaModule {
         return blockSize*availableBlocks;
     }
   @ReactMethod
+  public void isBatteryCharging(Promise p){
+    IntentFilter ifilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+    Intent batteryStatus = this.reactContext.getApplicationContext().registerReceiver(null, ifilter);
+    int status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+    boolean isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING;
+    p.resolve(isCharging);
+  }
+
+  @ReactMethod
   public void getBatteryLevel(Promise p) {
     Intent batteryIntent = this.reactContext.getApplicationContext().registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
     int level = batteryIntent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
     int scale = batteryIntent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
     float batteryLevel = level / (float) scale;
     p.resolve(batteryLevel);
+  }
+
+  @ReactMethod
+  public void isAirPlaneMode(Promise p) {
+    boolean isAirPlaneMode;
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
+        isAirPlaneMode = Settings.System.getInt(this.reactContext.getContentResolver(),Settings.System.AIRPLANE_MODE_ON, 0) != 0;
+    } else {
+        isAirPlaneMode = Settings.Global.getInt(this.reactContext.getContentResolver(),Settings.Global.AIRPLANE_MODE_ON, 0) != 0;
+    }
+    p.resolve(isAirPlaneMode);
+  }
+
+  @ReactMethod
+  public void isAutoDateAndTime(Promise p) {
+    boolean isAutoDateAndTime;
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
+      isAutoDateAndTime = Settings.System.getInt(this.reactContext.getContentResolver(),Settings.System.AUTO_TIME, 0) != 0;
+    } else {
+      isAutoDateAndTime = Settings.Global.getInt(this.reactContext.getContentResolver(),Settings.Global.AUTO_TIME, 0) != 0;
+    }
+    p.resolve(isAutoDateAndTime);
+  }
+
+  @ReactMethod
+  public void isAutoTimeZone(Promise p) {
+    boolean isAutoTimeZone;
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
+      isAutoTimeZone = Settings.System.getInt(this.reactContext.getContentResolver(),Settings.System.AUTO_TIME_ZONE, 0) != 0;
+    } else {
+      isAutoTimeZone = Settings.Global.getInt(this.reactContext.getContentResolver(),Settings.Global.AUTO_TIME_ZONE, 0) != 0;
+    }
+    p.resolve(isAutoTimeZone);
   }
 
   public String getInstallReferrer() {
@@ -378,32 +436,49 @@ public class RNDeviceModule extends ReactContextBaseJavaModule {
 		constants.put("bundleId", packageName);
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
       try {
+    constants.put("serialNumber", Build.SERIAL);
+    constants.put("deviceName", deviceName);
+    constants.put("systemName", "Android");
+    constants.put("systemVersion", Build.VERSION.RELEASE);
+    constants.put("model", Build.MODEL);
+    constants.put("brand", Build.BRAND);
+    constants.put("buildId", Build.ID);
+    constants.put("deviceId", Build.BOARD);
+    constants.put("apiLevel", Build.VERSION.SDK_INT);
+    constants.put("deviceLocale", this.getCurrentLanguage());
+    constants.put("preferredLocales", this.getPreferredLocales());
+    constants.put("deviceCountry", this.getCurrentCountry());
+    constants.put("uniqueId", Settings.Secure.getString(this.reactContext.getContentResolver(), Settings.Secure.ANDROID_ID));
+    constants.put("systemManufacturer", Build.MANUFACTURER);
+    constants.put("bundleId", packageName);
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
         constants.put("userAgent", WebSettings.getDefaultUserAgent(this.reactContext));
-      } catch (RuntimeException e) {
+      } else {
         constants.put("userAgent", System.getProperty("http.agent"));
       }
+    } catch (RuntimeException e) {
+      constants.put("userAgent", System.getProperty("http.agent"));
     }
     constants.put("timezone", TimeZone.getDefault().getID());
     constants.put("isEmulator", this.isEmulator());
     constants.put("isTablet", this.isTablet());
     constants.put("fontScale", this.fontScale());
     constants.put("is24Hour", this.is24Hour());
-    try {
-		if (getCurrentActivity() != null &&
-			(getCurrentActivity().checkCallingOrSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED ||
-				getCurrentActivity().checkCallingOrSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED ||
-				getCurrentActivity().checkCallingOrSelfPermission("android.permission.READ_PHONE_NUMBERS") == PackageManager.PERMISSION_GRANTED)) {
-
-			TelephonyManager telMgr = (TelephonyManager) this.reactContext.getApplicationContext().getSystemService(Context.TELEPHONY_SERVICE);
-			constants.put("phoneNumber", telMgr.getLine1Number());
-		}
-    } catch (Exception e) {
-      //TODO: handle exception
-    }
     constants.put("carrier", this.getCarrier());
     constants.put("totalDiskCapacity", this.getTotalDiskCapacity());
     constants.put("freeDiskStorage", this.getFreeDiskStorage());
     constants.put("installReferrer", this.getInstallReferrer());
+
+    if (reactContext != null &&
+         (reactContext.checkCallingOrSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED ||
+           (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && reactContext.checkCallingOrSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) ||
+           (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && reactContext.checkCallingOrSelfPermission(Manifest.permission.READ_PHONE_NUMBERS) == PackageManager.PERMISSION_GRANTED))) {
+      TelephonyManager telMgr = (TelephonyManager) this.reactContext.getApplicationContext().getSystemService(Context.TELEPHONY_SERVICE);
+      constants.put("phoneNumber", telMgr.getLine1Number());
+    } else {
+      constants.put("phoneNumber", null);
+    }
 
     Runtime rt = Runtime.getRuntime();
     constants.put("maxMemory", rt.maxMemory());
@@ -411,7 +486,12 @@ public class RNDeviceModule extends ReactContextBaseJavaModule {
     ActivityManager.MemoryInfo memInfo = new ActivityManager.MemoryInfo();
     actMgr.getMemoryInfo(memInfo);
     constants.put("totalMemory", memInfo.totalMem);
-
+    constants.put("deviceType", deviceType.getValue());
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+      constants.put("supportedABIs", Build.SUPPORTED_ABIS);
+    } else {
+      constants.put("supportedABIs", new String[]{ Build.CPU_ABI });
+    }
     return constants;
   }
 }
