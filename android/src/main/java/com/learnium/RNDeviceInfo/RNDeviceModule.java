@@ -416,26 +416,6 @@ public class RNDeviceModule extends ReactContextBaseJavaModule {
     } catch (ClassNotFoundException e) {
       constants.put("instanceId", "N/A: Add com.google.android.gms:play-services-gcm to your project.");
     }
-
-		constants.put("serialNumber", Build.SERIAL);
-		constants.put("deviceName", deviceName);
-		constants.put("systemName", "Android");
-		constants.put("systemVersion", Build.VERSION.RELEASE);
-		constants.put("model", Build.MODEL);
-		constants.put("brand", Build.BRAND);
-		constants.put("deviceId", Build.BOARD);
-		constants.put("apiLevel", Build.VERSION.SDK_INT);
-		constants.put("deviceLocale", this.getCurrentLanguage());
-		constants.put("deviceCountry", this.getCurrentCountry());
-		constants.put("getSimOperator", this.getSimOperatorFun());
-		constants.put("imei", this.getImei());
-    	constants.put("imsi", this.getImsi());
-    	constants.put("ScreenDensityDpi", this.getScreenDensityDpi());
-		constants.put("uniqueId", Secure.getString(this.reactContext.getContentResolver(), Secure.ANDROID_ID));
-		constants.put("systemManufacturer", Build.MANUFACTURER);
-		constants.put("bundleId", packageName);
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-      try {
     constants.put("serialNumber", Build.SERIAL);
     constants.put("deviceName", deviceName);
     constants.put("systemName", "Android");
